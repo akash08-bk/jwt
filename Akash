@@ -1,1 +1,188 @@
-demo
+config folder
+file name:mongoConfig.js
+const mongoose=require('mongoose')
+require('dotenv').config
+const connectDB = async()=>{
+    try {
+        await mongoose.connect(process.env.MONGO_URL)
+        console.log("DB connected successfully");
+        
+    } catch (error) {
+        console.log(`error in connecting to db ${error.message}`);
+        
+        
+    }
+}
+module.exports=connectDB
+
+
+
+
+folder:controllers
+filename:userControllers
+const User=require('../models/userModel')
+const errorHandler=require('../utils/errorHandler')
+const jwt = require('jsonwebtoken')
+require('dotenv').config()
+const generateToken=(user)=>{
+    return jwt.sign({username:user_username},process.env.JWT_SECRET,{
+        expiresIn:process.env.JWT_EXPIRY_IN
+    })
+}
+
+const signup=async(req,res)=>{
+    try {
+        const{username,email,password}=req.body;
+        const existingUser=await User.findOne({email})
+        if (existingUser){
+            return res.status(400).json({message:"email aldready exists"})
+        }
+        const user = new User({username,email,password})
+        await user.save()
+        res.status(201).json({message:"user created successfully"})
+        
+    } catch (error) {
+        errorHandler(res,error)
+    }
+
+}
+const login=async(req,res)=>{
+    try {
+        const {email,password}=req.body;
+        const user=await User.findOne({email})
+        //const pwd=await User.findOne({password})
+        if(!user||!(await user.checkValidPassword(password))){
+            return res.status(401).json({message:"invalid email or password"})
+        }
+        const token = generateToken(user)
+        res.status(200).json({messsage:"login successful",token})
+        res.status(200).json({message:"login successfully"})    
+    }
+    catch(error){
+        errorHandler(res,error)
+    }
+
+}
+module.exports={signup,login}
+
+
+folder:models
+filename:userModels.js
+const mongoose = require('mongoose')
+const bcrypt=require('bcrypt');
+require('dotenv').config()
+
+
+
+const userSchema=new mongoose.Schema({
+    username:{
+        type:String,
+        required:true,
+        unique:true,
+    },
+    email:{
+        type:String,
+        required:true,
+        unique:true,
+    },
+    password:{
+        type:String,
+        required:true,
+    },
+
+},{timestamps:true});
+
+//encrypting the password:
+userSchema.pre('save',async function (next){
+    if(this.isModified('password')){
+        const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS))
+        this.password= await bcrypt.hash(this.password,salt)
+    }
+    next();
+})
+
+//decrypt the password:
+userSchema.methods.checkValidPassword = async function(password){
+    return bcrypt.compare(password,this.password)
+}
+module.exports=mongoose.model('User',userSchema)
+
+
+folder:routes
+filename:userRoutes
+const mongoose = require('mongoose')
+const bcrypt=require('bcrypt');
+require('dotenv').config()
+
+
+
+const userSchema=new mongoose.Schema({
+    username:{
+        type:String,
+        required:true,
+        unique:true,
+    },
+    email:{
+        type:String,
+        required:true,
+        unique:true,
+    },
+    password:{
+        type:String,
+        required:true,
+    },
+
+},{timestamps:true});
+
+//encrypting the password:
+userSchema.pre('save',async function (next){
+    if(this.isModified('password')){
+        const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS))
+        this.password= await bcrypt.hash(this.password,salt)
+    }
+    next();
+})
+
+//decrypt the password:
+userSchema.methods.checkValidPassword = async function(password){
+    return bcrypt.compare(password,this.password)
+}
+module.exports=mongoose.model('User',userSchema)
+
+folder:utils
+filename:errorHandler
+const errorHandler=(res,error)=>{
+    console.log(error);
+    res.status(500).json({message:"Internal server error"})
+
+    
+}
+module.exports=errorHandler
+
+
+.env
+PORT=3000
+MONGO_URL=mongodb+srv://akashbkadahalli:SzF4s8Qy21CKmjIf@akash.ljrt4.mongodb.net/?retryWrites=true&w=majority&appName=Akash
+BCRYPT_SALT_ROUNDS=10
+JWT_SECRET=72b02fa031aaba61d1a396c42345bb1859f7e59005817042f6ddd00e19865ecae0a85ae42f43e126fd141f4d88342495c75b521797f6c81644fd2becd5523795a9c4ed532683d90d73ccfc7e32cd68ec956c46ec955cbf994935218240fcba01e908b89882977a56985e56091a783e79aedc201ceebfb88e03d50eaac89e8b4120d32a7a8f0b7ea490bbfd4f6e7c560840e6039fa30695869a6670b52db47bcb9ffca9686050d6513fdb5210126e44b1c820c464106ae6cb1228a57489042b4d8a6c60e5e49675556655148ecec3997ffd32b1c9d44ab6cc0c5a6920d50cf9afb07f21ce47b7896c3b522c04daa9eb0f5486e94eb9ea07d837871847d25d8b21
+JWT_EXPIRY_IN=id
+
+
+
+server.js
+const express = require('express')
+const app = express()
+require('dotenv').config()
+const connectDB=require('./config/mongoConfig')
+const userRoutes=require('./routes/userRoutes')
+const PORT= process.env.PORT||2000
+connectDB()
+app.use(express.urlencoded({extended:true}))
+app.use(express.json())
+app.use('/api/auth',userRoutes)
+app.get("/",(req,res)=>{
+    res.send("Api is running")
+})
+app.listen(PORT,()=>{
+    console.log(`app running on ${PORT}`)
+})
